@@ -1,0 +1,855 @@
+[
+  {
+    "id": "infra-01",
+    "stage": "1-infrastructure",
+    "component": "config",
+    "description": "config.py loads LLM_API_KEY, LLM_MODEL, LLM_BASE_URL from .env via python-dotenv",
+    "verification": [
+      "Create a .env file with test values: LLM_API_KEY=test-key, LLM_MODEL=test-model, LLM_BASE_URL=http://test-url",
+      "Import config module",
+      "Assert config.LLM_API_KEY == 'test-key'",
+      "Assert config.LLM_MODEL == 'test-model'",
+      "Assert config.LLM_BASE_URL == 'http://test-url'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-02",
+    "stage": "1-infrastructure",
+    "component": "config",
+    "description": "config.py provides defaults for LLM_TEMPERATURE, LLM_MAX_TOKENS, WORK_DIR, MAX_FIX_ATTEMPTS, DOCKER_BUILD_TIMEOUT, CONTAINER_STARTUP_TIMEOUT, LOG_LEVEL",
+    "verification": [
+      "Import config module",
+      "Assert config.LLM_TEMPERATURE == 0.2",
+      "Assert config.LLM_MAX_TOKENS == 4096",
+      "Assert config.MAX_FIX_ATTEMPTS == 3",
+      "Assert config.DOCKER_BUILD_TIMEOUT == 600",
+      "Assert config.CONTAINER_STARTUP_TIMEOUT == 30",
+      "Assert config.LOG_LEVEL == 'INFO'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-03",
+    "stage": "1-infrastructure",
+    "component": "config",
+    "description": "config.py LLM_BASE_URL defaults to None when not set in .env",
+    "verification": [
+      "Remove LLM_BASE_URL from .env",
+      "Reload config module",
+      "Assert config.LLM_BASE_URL is None"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-04",
+    "stage": "1-infrastructure",
+    "component": "schemas",
+    "description": "EnvVarSpec model validates correctly with all fields",
+    "verification": [
+      "from src.schemas.models import EnvVarSpec",
+      "Create EnvVarSpec(name='API_KEY', description='API key', required=True, default_value=None, source='README', category='api_key')",
+      "Assert instance validates without error",
+      "Assert instance.name == 'API_KEY'",
+      "Assert instance.required == True"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-05",
+    "stage": "1-infrastructure",
+    "component": "schemas",
+    "description": "RepoAnalysisResult model accepts all required fields and optional fields",
+    "verification": [
+      "from src.schemas.models import RepoAnalysisResult, EnvVarSpec",
+      "Create a RepoAnalysisResult with all required fields populated",
+      "Assert instance validates without error",
+      "Assert exposed_port defaults to None when not provided",
+      "Assert required_env_vars is a list of EnvVarSpec"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-06",
+    "stage": "1-infrastructure",
+    "component": "schemas",
+    "description": "DockerfileSpec model validates correctly",
+    "verification": [
+      "from src.schemas.models import DockerfileSpec",
+      "Create DockerfileSpec with dockerfile_content, env_vars_to_inject, expected_transport, exposed_ports, entrypoint, notes",
+      "Assert instance validates without error"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-07",
+    "stage": "1-infrastructure",
+    "component": "schemas",
+    "description": "BuildResult model validates correctly",
+    "verification": [
+      "from src.schemas.models import BuildResult",
+      "Create BuildResult(success=True, image_tag='test:latest', build_log='OK', error_summary=None)",
+      "Assert instance validates without error",
+      "Create BuildResult(success=False, image_tag='test:latest', build_log='ERROR', error_summary='missing package')",
+      "Assert instance.error_summary == 'missing package'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-08",
+    "stage": "1-infrastructure",
+    "component": "schemas",
+    "description": "TestResult model validates correctly",
+    "verification": [
+      "from src.schemas.models import TestResult",
+      "Create TestResult(container_started=True, startup_log='started', mcp_handshake_ok=True, error_summary=None, missing_secrets=[])",
+      "Assert instance validates without error"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-09",
+    "stage": "1-infrastructure",
+    "component": "schemas",
+    "description": "FinalOutput model validates correctly with all fields",
+    "verification": [
+      "from src.schemas.models import FinalOutput, EnvVarSpec",
+      "Create FinalOutput with all required fields",
+      "Assert instance validates without error",
+      "Assert instance.success is a bool",
+      "Assert instance.required_secrets is a list of EnvVarSpec"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-10",
+    "stage": "1-infrastructure",
+    "component": "schemas",
+    "description": "PipelineState enum has all required states",
+    "verification": [
+      "from src.schemas.models import PipelineState",
+      "Assert PipelineState.INIT.value == 'init'",
+      "Assert PipelineState.REPO_ANALYSIS.value == 'repo_analysis'",
+      "Assert PipelineState.DOCKERFILE_GEN.value == 'dockerfile_gen'",
+      "Assert PipelineState.BUILD_TEST.value == 'build_test'",
+      "Assert PipelineState.FIXING.value == 'fixing'",
+      "Assert PipelineState.DONE.value == 'done'",
+      "Assert PipelineState.FAILED.value == 'failed'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-11",
+    "stage": "1-infrastructure",
+    "component": "schemas",
+    "description": "PipelineContext model has correct defaults and accepts all fields",
+    "verification": [
+      "from src.schemas.models import PipelineContext, PipelineState",
+      "Create PipelineContext(repo_path='/tmp/test', work_dir='/tmp/work')",
+      "Assert instance.state == PipelineState.INIT",
+      "Assert instance.fix_attempts == 0",
+      "Assert instance.max_fix_attempts == 3",
+      "Assert instance.error_history == []",
+      "Assert instance.repo_analysis is None"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-12",
+    "stage": "1-infrastructure",
+    "component": "data_structures",
+    "description": "MessageThread correctly initializes and manages messages",
+    "verification": [
+      "from src.data_structures import MessageThread",
+      "Create MessageThread instance",
+      "Call add_message with role='system', content='test'",
+      "Assert messages list has length 1",
+      "Assert messages[0]['role'] == 'system'",
+      "Assert messages[0]['content'] == 'test'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-13",
+    "stage": "1-infrastructure",
+    "component": "data_structures",
+    "description": "FunctionCallIntent stores tool call information",
+    "verification": [
+      "from src.data_structures import FunctionCallIntent",
+      "Create FunctionCallIntent with name='read_file', arguments={'path': '/tmp/test'}",
+      "Assert instance.name == 'read_file'",
+      "Assert instance.arguments == {'path': '/tmp/test'}"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-14",
+    "stage": "1-infrastructure",
+    "component": "model_client",
+    "description": "ModelClient initializes with config values and has correct interface",
+    "verification": [
+      "from src.model.client import ModelClient",
+      "Create ModelClient instance",
+      "Assert client has chat_completion method",
+      "Assert client uses config.LLM_API_KEY, config.LLM_MODEL, config.LLM_BASE_URL"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-15",
+    "stage": "1-infrastructure",
+    "component": "model_client",
+    "description": "ModelClient.chat_completion accepts messages list, tools list, and returns response",
+    "verification": [
+      "from src.model.client import ModelClient",
+      "Verify chat_completion method signature accepts messages: list[dict], tools: list[dict] | None, temperature: float | None",
+      "Verify method returns an OpenAI ChatCompletion-compatible response object"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-16",
+    "stage": "1-infrastructure",
+    "component": "base_agent",
+    "description": "BaseAgent is abstract and requires subclasses to implement init_msg_thread and get_available_tools",
+    "verification": [
+      "from src.agents.base_agent import BaseAgent",
+      "Attempt to instantiate BaseAgent directly",
+      "Assert TypeError is raised (cannot instantiate abstract class)",
+      "Create a minimal subclass implementing init_msg_thread and get_available_tools",
+      "Assert subclass can be instantiated"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-17",
+    "stage": "1-infrastructure",
+    "component": "base_agent",
+    "description": "BaseAgent manages message thread with add_system_message and add_user_message",
+    "verification": [
+      "Create a concrete subclass of BaseAgent",
+      "Call add_system_message('system prompt')",
+      "Call add_user_message('user input')",
+      "Assert msg_thread contains both messages with correct roles"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-18",
+    "stage": "1-infrastructure",
+    "component": "base_agent",
+    "description": "BaseAgent.should_stop returns True when round count exceeds max_round",
+    "verification": [
+      "Create a concrete subclass with max_round=3",
+      "Simulate 3 rounds of execution",
+      "Assert should_stop() returns True"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-19",
+    "stage": "1-infrastructure",
+    "component": "base_agent",
+    "description": "BaseAgent.execute_tool dispatches to registered tool functions",
+    "verification": [
+      "Create a concrete subclass with a mock tool registered",
+      "Create a FunctionCallIntent for the mock tool",
+      "Call execute_tool with the intent",
+      "Assert the mock tool was called with correct arguments",
+      "Assert the result is returned as a string"
+    ],
+    "passes": false
+  },
+  {
+    "id": "infra-20",
+    "stage": "1-infrastructure",
+    "component": "base_agent",
+    "description": "BaseAgent.get_tool_definitions returns OpenAI-compatible tool schemas",
+    "verification": [
+      "Create a concrete subclass with tools registered",
+      "Call get_tool_definitions()",
+      "Assert return is a list of dicts",
+      "Assert each dict has 'type': 'function' and 'function' key with 'name', 'description', 'parameters'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-01",
+    "stage": "2-tools",
+    "component": "file_tools",
+    "description": "list_directory_tree returns ASCII tree of a directory",
+    "verification": [
+      "Create a temp directory with subdirs and files",
+      "Call list_directory_tree(temp_dir)",
+      "Assert result is a non-empty string",
+      "Assert result contains the subdirectory and file names"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-02",
+    "stage": "2-tools",
+    "component": "file_tools",
+    "description": "read_file returns content of a known file with line limit",
+    "verification": [
+      "Create a temp file with 1000 lines of content",
+      "Call read_file(temp_file_path)",
+      "Assert result contains the file content",
+      "Call read_file(temp_file_path, max_lines=10)",
+      "Assert result contains only 10 lines"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-03",
+    "stage": "2-tools",
+    "component": "file_tools",
+    "description": "write_file creates or overwrites a file with given content",
+    "verification": [
+      "Call write_file(temp_path, 'hello world')",
+      "Read the file back and assert content == 'hello world'",
+      "Call write_file(temp_path, 'new content') to overwrite",
+      "Read back and assert content == 'new content'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-04",
+    "stage": "2-tools",
+    "component": "file_tools",
+    "description": "search_files finds files matching glob pattern",
+    "verification": [
+      "Create a temp directory with files: a.py, b.py, c.txt",
+      "Call search_files(temp_dir, '*.py')",
+      "Assert result contains a.py and b.py",
+      "Assert result does not contain c.txt"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-05",
+    "stage": "2-tools",
+    "component": "file_tools",
+    "description": "search_in_files finds content matching regex across files",
+    "verification": [
+      "Create temp files with known content including 'API_KEY' in one file",
+      "Call search_in_files(temp_dir, 'API_KEY', '*.py')",
+      "Assert result is a list of dicts with file, line_number, line keys",
+      "Assert the file containing 'API_KEY' is in the results"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-06",
+    "stage": "2-tools",
+    "component": "docker_tools",
+    "description": "docker.from_env() successfully connects to local Docker Engine",
+    "verification": [
+      "Call docker.from_env().ping()",
+      "Assert returns True without ConnectionError"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-07",
+    "stage": "2-tools",
+    "component": "docker_tools",
+    "description": "build_image builds a Docker image from a Dockerfile and returns BuildResult",
+    "verification": [
+      "Create a temp dir with a minimal Dockerfile (FROM alpine:latest)",
+      "Call build_image(context_path=temp_dir, dockerfile_path='Dockerfile', tag='test-build:latest')",
+      "Assert returned BuildResult.success == True",
+      "Assert returned BuildResult.image_tag == 'test-build:latest'",
+      "Clean up: remove the built image"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-08",
+    "stage": "2-tools",
+    "component": "docker_tools",
+    "description": "build_image returns BuildResult with success=False on invalid Dockerfile",
+    "verification": [
+      "Create a temp dir with an invalid Dockerfile (FROM nonexistent_image_xyz:latest)",
+      "Call build_image with this Dockerfile",
+      "Assert returned BuildResult.success == False",
+      "Assert returned BuildResult.error_summary is not None"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-09",
+    "stage": "2-tools",
+    "component": "docker_tools",
+    "description": "run_container starts a container and returns container_id",
+    "verification": [
+      "Build a minimal image (alpine with sleep command)",
+      "Call run_container(image_tag, env_vars={'TEST': '1'})",
+      "Assert returned container_id is a non-empty string",
+      "Clean up: stop and remove container and image"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-10",
+    "stage": "2-tools",
+    "component": "docker_tools",
+    "description": "get_container_logs returns logs from a running container",
+    "verification": [
+      "Start a container that produces known output (echo hello)",
+      "Call get_container_logs(container_id, tail=10)",
+      "Assert result contains the expected output",
+      "Clean up container"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-11",
+    "stage": "2-tools",
+    "component": "docker_tools",
+    "description": "stop_and_remove_container cleans up a container",
+    "verification": [
+      "Start a container",
+      "Call stop_and_remove_container(container_id)",
+      "Assert returns True",
+      "Assert container no longer exists (docker inspect fails)"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-12",
+    "stage": "2-tools",
+    "component": "docker_tools",
+    "description": "remove_image removes a Docker image",
+    "verification": [
+      "Build a test image",
+      "Call remove_image(image_tag)",
+      "Assert returns True",
+      "Assert image no longer exists"
+    ],
+    "passes": false
+  },
+  {
+    "id": "tool-13",
+    "stage": "2-tools",
+    "component": "docker_tools",
+    "description": "send_mcp_initialize constructs correct JSON-RPC initialize message",
+    "verification": [
+      "Inspect the send_mcp_initialize function",
+      "Assert the initialize request contains jsonrpc='2.0', id=1, method='initialize'",
+      "Assert params include protocolVersion, capabilities, clientInfo"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-repo-01",
+    "stage": "3-repo-analysis-agent",
+    "component": "repo_analysis_agent",
+    "description": "RepoAnalysisAgent initializes with correct tools registered",
+    "verification": [
+      "from src.agents.repo_analysis_agent import RepoAnalysisAgent",
+      "Create RepoAnalysisAgent instance",
+      "Assert tool_registry contains 'list_directory_tree', 'read_file', 'search_files', 'search_in_files'",
+      "Assert max_round == 15"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-repo-02",
+    "stage": "3-repo-analysis-agent",
+    "component": "repo_analysis_agent",
+    "description": "RepoAnalysisAgent has system prompt covering structure analysis and env var scanning",
+    "verification": [
+      "from src.agents.repo_analysis_agent.prompts import SYSTEM_PROMPT",
+      "Assert SYSTEM_PROMPT is a non-empty string",
+      "Assert SYSTEM_PROMPT mentions project structure analysis",
+      "Assert SYSTEM_PROMPT mentions environment variable scanning",
+      "Assert SYSTEM_PROMPT mentions transport type detection (stdio/sse)"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-repo-03",
+    "stage": "3-repo-analysis-agent",
+    "component": "repo_analysis_agent",
+    "description": "RepoAnalysisAgent.run() returns a valid RepoAnalysisResult",
+    "verification": [
+      "Create RepoAnalysisAgent instance",
+      "Call run() with the python-sdk test repo path (C:\\work_dir\\testing_projects\\python-sdk)",
+      "Assert return type is RepoAnalysisResult",
+      "Assert result.language is a non-empty string",
+      "Assert result.package_manager is a non-empty string",
+      "Assert result.entry_point is a non-empty string",
+      "Assert result.confidence >= 0.0 and <= 1.0"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-repo-04",
+    "stage": "3-repo-analysis-agent",
+    "component": "repo_analysis_agent",
+    "description": "RepoAnalysisAgent correctly identifies Python project characteristics",
+    "verification": [
+      "Run RepoAnalysisAgent on python-sdk test repo",
+      "Assert result.language == 'python'",
+      "Assert result.package_manager in ['pip', 'uv', 'poetry']",
+      "Assert result.config_files_found includes 'pyproject.toml'",
+      "Assert result.base_image_suggestion contains 'python'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-repo-05",
+    "stage": "3-repo-analysis-agent",
+    "component": "repo_analysis_agent",
+    "description": "RepoAnalysisAgent generates env_file_template content",
+    "verification": [
+      "Run RepoAnalysisAgent on python-sdk test repo",
+      "Assert result.env_file_template is a non-empty string",
+      "Assert result.secrets_risk is one of 'low', 'medium', 'high'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-dock-01",
+    "stage": "4-dockerfile-agent",
+    "component": "dockerfile_agent",
+    "description": "DockerfileAgent initializes with correct tools registered",
+    "verification": [
+      "from src.agents.dockerfile_agent import DockerfileAgent",
+      "Create DockerfileAgent instance",
+      "Assert tool_registry contains 'read_file', 'write_file'",
+      "Assert max_round == 10"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-dock-02",
+    "stage": "4-dockerfile-agent",
+    "component": "dockerfile_agent",
+    "description": "DockerfileAgent has system prompt with Dockerfile best practices",
+    "verification": [
+      "from src.agents.dockerfile_agent.prompts import SYSTEM_PROMPT",
+      "Assert SYSTEM_PROMPT mentions multi-stage builds",
+      "Assert SYSTEM_PROMPT mentions slim/alpine images",
+      "Assert SYSTEM_PROMPT mentions non-root user",
+      "Assert SYSTEM_PROMPT mentions Docker layer caching"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-dock-03",
+    "stage": "4-dockerfile-agent",
+    "component": "dockerfile_agent",
+    "description": "DockerfileAgent.generate() produces a valid DockerfileSpec from RepoAnalysisResult",
+    "verification": [
+      "Create a mock RepoAnalysisResult for a Python project",
+      "Call DockerfileAgent.generate(repo_analysis_result)",
+      "Assert return type is DockerfileSpec",
+      "Assert dockerfile_content is a non-empty string containing 'FROM'",
+      "Assert dockerfile_content contains 'ENTRYPOINT' or 'CMD'",
+      "Assert expected_transport matches the input"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-dock-04",
+    "stage": "4-dockerfile-agent",
+    "component": "dockerfile_agent",
+    "description": "DockerfileAgent.fix() produces updated DockerfileSpec given error feedback",
+    "verification": [
+      "Create a mock RepoAnalysisResult",
+      "Create a mock BuildResult(success=False, error_summary='missing package foo')",
+      "Call DockerfileAgent.fix(repo_analysis, build_result, test_result=None)",
+      "Assert return type is DockerfileSpec",
+      "Assert returned dockerfile_content differs from the original"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-dock-05",
+    "stage": "4-dockerfile-agent",
+    "component": "dockerfile_agent",
+    "description": "DockerfileAgent.generate() writes Dockerfile to disk",
+    "verification": [
+      "Create a mock RepoAnalysisResult with a valid work_dir",
+      "Call DockerfileAgent.generate()",
+      "Assert a Dockerfile file was written to the work_dir",
+      "Assert file content matches dockerfile_content in the returned DockerfileSpec"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-build-01",
+    "stage": "5-build-test-agent",
+    "component": "build_test_agent",
+    "description": "BuildTestAgent initializes with correct tools registered",
+    "verification": [
+      "from src.agents.build_test_agent import BuildTestAgent",
+      "Create BuildTestAgent instance",
+      "Assert tool_registry contains 'build_image', 'run_container', 'get_container_logs', 'send_mcp_initialize', 'stop_and_remove_container'",
+      "Assert max_round == 8"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-build-02",
+    "stage": "5-build-test-agent",
+    "component": "build_test_agent",
+    "description": "BuildTestAgent.run() returns BuildResult and TestResult tuple",
+    "verification": [
+      "Create BuildTestAgent instance",
+      "Create a mock DockerfileSpec with a valid minimal Dockerfile",
+      "Create a mock RepoAnalysisResult",
+      "Call run(dockerfile_spec, repo_analysis)",
+      "Assert return is a tuple of (BuildResult, TestResult)"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-build-03",
+    "stage": "5-build-test-agent",
+    "component": "build_test_agent",
+    "description": "BuildTestAgent returns BuildResult(success=False) and skips test on build failure",
+    "verification": [
+      "Create a DockerfileSpec with an invalid Dockerfile",
+      "Call BuildTestAgent.run()",
+      "Assert BuildResult.success == False",
+      "Assert TestResult.container_started == False",
+      "Assert TestResult.mcp_handshake_ok == False"
+    ],
+    "passes": false
+  },
+  {
+    "id": "agent-build-04",
+    "stage": "5-build-test-agent",
+    "component": "build_test_agent",
+    "description": "BuildTestAgent cleans up containers after test",
+    "verification": [
+      "Run BuildTestAgent with a valid Dockerfile",
+      "After run completes, verify no leftover containers from the test exist",
+      "Verify stop_and_remove_container was called"
+    ],
+    "passes": false
+  },
+  {
+    "id": "orch-01",
+    "stage": "6-orchestrator",
+    "component": "orchestrator",
+    "description": "PipelineContext initializes with INIT state",
+    "verification": [
+      "from src.orchestrator import Orchestrator",
+      "from src.schemas.models import PipelineContext, PipelineState",
+      "Create PipelineContext(repo_path='/tmp/test', work_dir='/tmp/work')",
+      "Assert context.state == PipelineState.INIT"
+    ],
+    "passes": false
+  },
+  {
+    "id": "orch-02",
+    "stage": "6-orchestrator",
+    "component": "orchestrator",
+    "description": "Orchestrator transitions through pipeline states correctly on success path",
+    "verification": [
+      "Create Orchestrator with mocked agents",
+      "Mock RepoAnalysisAgent to return valid result with confidence > 0.3",
+      "Mock DockerfileAgent to return valid DockerfileSpec",
+      "Mock BuildTestAgent to return success BuildResult and TestResult with mcp_handshake_ok=True",
+      "Run orchestrator",
+      "Assert final state is DONE",
+      "Assert FinalOutput.success == True"
+    ],
+    "passes": false
+  },
+  {
+    "id": "orch-03",
+    "stage": "6-orchestrator",
+    "component": "orchestrator",
+    "description": "Orchestrator aborts when RepoAnalysisAgent returns confidence < 0.3",
+    "verification": [
+      "Create Orchestrator with mocked agents",
+      "Mock RepoAnalysisAgent to return result with confidence=0.1",
+      "Run orchestrator",
+      "Assert FinalOutput.success == False",
+      "Assert notes mention low confidence"
+    ],
+    "passes": false
+  },
+  {
+    "id": "orch-04",
+    "stage": "6-orchestrator",
+    "component": "orchestrator",
+    "description": "Orchestrator triggers fix loop on build failure",
+    "verification": [
+      "Create Orchestrator with mocked agents",
+      "Mock BuildTestAgent to fail first time, succeed second time",
+      "Mock DockerfileAgent.fix() to return updated DockerfileSpec",
+      "Run orchestrator",
+      "Assert DockerfileAgent.fix() was called",
+      "Assert fix_attempts == 1",
+      "Assert FinalOutput.success == True"
+    ],
+    "passes": false
+  },
+  {
+    "id": "orch-05",
+    "stage": "6-orchestrator",
+    "component": "orchestrator",
+    "description": "Orchestrator respects max_fix_attempts limit",
+    "verification": [
+      "Create Orchestrator with max_fix_attempts=2",
+      "Mock BuildTestAgent to always fail",
+      "Run orchestrator",
+      "Assert fix_attempts == 2",
+      "Assert FinalOutput.success == False",
+      "Assert notes mention max fix attempts reached"
+    ],
+    "passes": false
+  },
+  {
+    "id": "orch-06",
+    "stage": "6-orchestrator",
+    "component": "orchestrator",
+    "description": "Orchestrator treats secrets-only failures as success with warnings",
+    "verification": [
+      "Create Orchestrator with mocked agents",
+      "Mock BuildTestAgent to return success build but TestResult with mcp_handshake_ok=False and missing_secrets=['API_KEY']",
+      "Mock is_secrets_only_error to return True",
+      "Run orchestrator",
+      "Assert FinalOutput.success == True",
+      "Assert notes contain warning about secrets"
+    ],
+    "passes": false
+  },
+  {
+    "id": "orch-07",
+    "stage": "6-orchestrator",
+    "component": "orchestrator",
+    "description": "Orchestrator assembles correct FinalOutput with all fields",
+    "verification": [
+      "Run orchestrator on success path",
+      "Assert FinalOutput has non-empty dockerfile_content",
+      "Assert FinalOutput has non-empty env_template",
+      "Assert FinalOutput has non-empty image_tag",
+      "Assert FinalOutput has non-empty startup_command containing 'docker run'",
+      "Assert FinalOutput has transport_type",
+      "Assert FinalOutput has required_secrets list"
+    ],
+    "passes": false
+  },
+  {
+    "id": "orch-08",
+    "stage": "6-orchestrator",
+    "component": "cli",
+    "description": "CLI parses all required arguments correctly",
+    "verification": [
+      "from src.main import parse_args or build parser",
+      "Parse args: ['/tmp/test-repo']",
+      "Assert repo_path == '/tmp/test-repo'",
+      "Assert output_dir has default './output'",
+      "Assert max_fix_attempts has default 3",
+      "Assert skip_test defaults to False",
+      "Assert verbose defaults to False"
+    ],
+    "passes": false
+  },
+  {
+    "id": "orch-09",
+    "stage": "6-orchestrator",
+    "component": "cli",
+    "description": "CLI writes output files to output directory",
+    "verification": [
+      "Run CLI with mocked orchestrator returning successful FinalOutput",
+      "Assert output_dir contains 'Dockerfile'",
+      "Assert output_dir contains '.env.example'",
+      "Assert output_dir contains 'build-report.json'"
+    ],
+    "passes": false
+  },
+  {
+    "id": "e2e-01",
+    "stage": "7-e2e",
+    "component": "end_to_end",
+    "description": "Full pipeline happy path: python-sdk repo produces successful FinalOutput",
+    "verification": [
+      "Run full pipeline on C:\\work_dir\\testing_projects\\python-sdk",
+      "Assert FinalOutput.success == True or FinalOutput notes only mention secrets",
+      "Assert Dockerfile was written to output directory",
+      "Assert .env.example was written to output directory",
+      "Assert build-report.json was written to output directory",
+      "Assert FinalOutput.image_tag is non-empty"
+    ],
+    "passes": false
+  },
+  {
+    "id": "e2e-02",
+    "stage": "7-e2e",
+    "component": "end_to_end",
+    "description": "Full pipeline produces valid Dockerfile that builds successfully",
+    "verification": [
+      "Run full pipeline on python-sdk repo",
+      "Read the generated Dockerfile",
+      "Assert Dockerfile contains FROM instruction",
+      "Assert Dockerfile contains ENTRYPOINT or CMD",
+      "Assert the Docker image was built (BuildResult.success == True)"
+    ],
+    "passes": false
+  },
+  {
+    "id": "e2e-03",
+    "stage": "7-e2e",
+    "component": "end_to_end",
+    "description": "Full pipeline fix loop recovers from initial build failure",
+    "verification": [
+      "If the first build attempt fails, verify the fix loop activates",
+      "Assert DockerfileAgent.fix() is called with error details",
+      "Assert the pipeline retries build with corrected Dockerfile",
+      "Assert fix_attempts > 0 in the pipeline context",
+      "Assert pipeline eventually reaches DONE or FAILED state"
+    ],
+    "passes": false
+  },
+  {
+    "id": "e2e-04",
+    "stage": "7-e2e",
+    "component": "end_to_end",
+    "description": "Full pipeline generates correct .env.example with identified env vars",
+    "verification": [
+      "Run full pipeline on python-sdk repo",
+      "Read generated .env.example file",
+      "Assert file is non-empty",
+      "Assert file contains variable names with placeholder values",
+      "Assert file has comment lines explaining variables"
+    ],
+    "passes": false
+  },
+  {
+    "id": "e2e-05",
+    "stage": "7-e2e",
+    "component": "end_to_end",
+    "description": "Full pipeline build-report.json contains complete execution trace",
+    "verification": [
+      "Run full pipeline on python-sdk repo",
+      "Read build-report.json",
+      "Assert JSON is valid and parses to FinalOutput schema",
+      "Assert report contains success status",
+      "Assert report contains repo_path",
+      "Assert report contains dockerfile_content",
+      "Assert report contains startup_command"
+    ],
+    "passes": false
+  },
+  {
+    "id": "e2e-06",
+    "stage": "7-e2e",
+    "component": "end_to_end",
+    "description": "Pipeline cleans up all Docker resources after completion",
+    "verification": [
+      "Run full pipeline",
+      "After completion, list all containers with the test label/prefix",
+      "Assert no leftover containers from the pipeline run",
+      "Verify cleanup was performed in finally blocks"
+    ],
+    "passes": false
+  }
+]

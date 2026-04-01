@@ -1,0 +1,505 @@
+<project_specification>
+  <project_name>MCP Auto-Installer — Agent-Driven Dockerfile Builder (Demo)</project_name>
+
+  <overview>
+    一个精简的多Agent系统：给定本地MCP Server仓库路径，自动分析其结构与运行时依赖，
+    生成Dockerfile，构建镜像并测试MCP协议握手，最终输出可直接运行的容器配置。
+
+    三个Agent通过Orchestrator串联：
+      RepoAnalysisAgent → DockerfileAgent → BuildTestAgent
+    其中DockerfileAgent与BuildTestAgent形成"生成→构建→报错→修复"的循环，直到成功或达到重试上限。
+  </overview>
+
+  <requirement>
+    使用uv来构建环境。
+  </requirement>
+
+  <technology_stack>
+    <language>Python 3.11+</language>
+    <llm_sdk>OpenAI Python SDK（兼容任意OpenAI-compatible endpoint）</llm_sdk>
+    <containerization>Docker SDK for Python (docker-py)</containerization>
+    <config>Pydantic v2 用于数据校验与schema定义</config>
+    <cli>简单的argparse入口（demo阶段不引入Click/Typer）</cli>
+    <logging>Python标准logging</logging>
+  </technology_stack>
+
+  <architecture_overview>
+    <directory_structure>
+      src/
+      ├── agents/
+      │   ├── base_agent.py                    # 抽象基类：消息管理、工具调度、轮次控制
+      │   ├── repo_analysis_agent/
+      │   │   ├── __init__.py
+      │   │   ├── repo_analysis_agent.py       # 合并：仓库结构分析 + 运行时依赖/Secrets分析
+      │   │   └── prompts.py                   # System prompt与工具描述
+      │   ├── dockerfile_agent/
+      │   │   ├── __init__.py
+      │   │   ├── dockerfile_agent.py          # 合并：Dockerfile生成 + 错误修复（循环）
+      │   │   └── prompts.py
+      │   └── build_test_agent/
+      │       ├── __init__.py
+      │       ├── build_test_agent.py          # 构建镜像、启动容器、MCP握手测试
+      │       └── prompts.py
+      ├── tools/
+      │   ├── __init__.py
+      │   ├── file_tools.py                    # list_dir_tree, read_file, write_file, search_in_files
+      │   └── docker_tools.py                  # build_image, run_container, get_logs, mcp_handshake, cleanup
+      ├── schemas/
+      │   ├── __init__.py
+      │   └── models.py                        # 所有Pydantic models集中定义
+      ├── orchestrator.py                      # Pipeline控制器
+      ├── model/
+      │   ├── __init__.py
+      │   └── client.py                        # LLM客户端封装
+      ├── data_structures.py                   # MessageThread, FunctionCallIntent（已有）
+      ├── config.py                            # 全局配置
+      └── main.py                              # CLI入口
+    </directory_structure>
+
+    <design_principles>
+      - 三个Agent，职责清晰，不过度拆分。
+      - Agent之间不直接调用，Orchestrator统一调度。
+      - DockerfileAgent与BuildTestAgent通过Orchestrator形成修复循环。
+      - 第一版仅支持本地仓库路径输入，预留url扩展接口。
+      - 所有Agent输入输出均为Pydantic model，保证类型安全。
+    </design_principles>
+  </architecture_overview>
+
+  <core_data_schemas>
+    <description>
+      集中定义在 src/schemas/models.py。每个Agent产出一个Result model，
+      Orchestrator负责传递。
+    </description>
+
+    <models>
+      class EnvVarSpec(BaseModel):
+          name: str                              # 如 "OPENAI_API_KEY"
+          description: str                       # 用途说明
+          required: bool
+          default_value: str | None = None
+          source: str                            # 发现来源："README" / ".env.example" / "source_code"
+          category: str                          # "api_key" / "database" / "oauth" / "config" / "other"
+
+      class RepoAnalysisResult(BaseModel):
+          """RepoAnalysisAgent的输出，合并了仓库结构分析与Secrets分析"""
+          # —— 仓库结构 ——
+          repo_path: str                         # 本地仓库路径
+          language: str                          # python / typescript / go / rust
+          package_manager: str                   # pip / npm / yarn / pnpm / cargo / go mod
+          entry_point: str                       # 启动MCP server的命令或文件
+          install_commands: list[str]            # 按序的安装命令
+          config_files_found: list[str]          # 找到的配置文件列表
+          readme_summary: str                    # README中安装说明的摘要
+          base_image_suggestion: str             # 建议的Docker基础镜像
+          transport_type: str                    # "stdio" / "sse" / "streamable-http" / "unknown"
+          exposed_port: int | None = None        # SSE/HTTP时需要暴露的端口
+          extra_system_deps: list[str]           # 需要apt-get安装的系统依赖
+          # —— 运行时依赖/Secrets ——
+          required_env_vars: list[EnvVarSpec]    # 必须提供的环境变量
+          optional_env_vars: list[EnvVarSpec]    # 可选的环境变量
+          env_file_template: str                 # 生成的 .env.example 内容
+          secrets_risk: str                      # "low" / "medium" / "high"
+          # —— 元信息 ——
+          confidence: float                      # 0.0-1.0 自评置信度
+          notes: list[str]                       # 观察、警告
+
+      class DockerfileSpec(BaseModel):
+          """DockerfileAgent的输出"""
+          dockerfile_content: str                # 完整Dockerfile文本
+          env_vars_to_inject: list[str]          # 运行时需注入的ENV名称
+          expected_transport: str
+          exposed_ports: list[int]
+          entrypoint: list[str]                  # ENTRYPOINT指令
+          notes: list[str]
+
+      class BuildResult(BaseModel):
+          """构建阶段结果"""
+          success: bool
+          image_tag: str
+          build_log: str                         # 完整构建日志
+          error_summary: str | None = None       # 失败时的错误摘要
+
+      class TestResult(BaseModel):
+          """测试阶段结果"""
+          container_started: bool
+          startup_log: str                       # 容器启动日志（前100行）
+          mcp_handshake_ok: bool                 # MCP initialize握手是否成功
+          error_summary: str | None = None
+          missing_secrets: list[str]             # 因缺少secrets导致的运行失败
+
+      class FinalOutput(BaseModel):
+          """Pipeline最终输出"""
+          success: bool
+          repo_path: str
+          dockerfile_content: str
+          env_template: str                      # .env.example内容
+          image_tag: str
+          transport_type: str
+          required_secrets: list[EnvVarSpec]
+          mcp_handshake_tested: bool
+          startup_command: str                   # 可直接运行的docker run命令
+          notes: list[str]
+    </models>
+  </core_data_schemas>
+
+  <agent_specifications>
+
+    <agent name="RepoAnalysisAgent">
+      <purpose>
+        分析本地MCP仓库的项目结构、语言、依赖、安装方式、MCP传输类型，
+        同时扫描运行时所需的环境变量与Secrets。合并输出为RepoAnalysisResult。
+      </purpose>
+      <tools>
+        - list_directory_tree(path) → str
+        - read_file(path, max_lines=500) → str
+        - search_files(root, glob_pattern) → list[str]
+        - search_in_files(root, regex, file_pattern="*") → list[dict]
+      </tools>
+      <workflow>
+        1. list_directory_tree 了解项目布局。
+        2. 读取关键文件：README.md, package.json / pyproject.toml / Cargo.toml / go.mod。
+        3. 识别语言、包管理器、安装命令、入口点。
+        4. 在源码中搜索 "stdio" / "sse" / "StreamableHTTP" 等关键词判断传输类型。
+        5. 搜索 .env / .env.example / .env.sample 文件。
+        6. 在源码中搜索 os.environ / process.env / env::var 等模式。
+        7. 搜索常见secrets模式：*_API_KEY, *_SECRET, *_TOKEN, DATABASE_URL。
+        8. 交叉对比README文档中的配置说明。
+        9. 分类每个变量：required/optional，api_key/database/oauth/config。
+        10. 生成 .env.example 模板。
+        11. 输出 RepoAnalysisResult。
+      </workflow>
+      <max_rounds>15</max_rounds>
+    </agent>
+
+    <agent name="DockerfileAgent">
+      <purpose>
+        根据RepoAnalysisResult生成Dockerfile。同时承担"修复者"角色：
+        当收到BuildTestAgent的错误反馈时，分析报错并生成修正后的Dockerfile。
+        生成与修复共享同一Agent实例，通过不同的user message触发。
+      </purpose>
+      <input>
+        首次调用：RepoAnalysisResult
+        修复调用：RepoAnalysisResult + BuildResult/TestResult（含错误信息）
+      </input>
+      <tools>
+        - read_file(path) → str                  # 查阅仓库文件辅助修复
+        - write_file(path, content) → str        # 写出Dockerfile
+      </tools>
+      <workflow_generate>
+        1. 根据语言和版本选择base image（slim/alpine优先）。
+        2. 编译型语言使用multi-stage build。
+        3. 先COPY依赖清单文件（利用Docker缓存层）。
+        4. 安装系统依赖 → 安装项目依赖 → COPY源码。
+        5. 声明ENV变量占位（带注释说明）。
+        6. 配置EXPOSE（如SSE/HTTP）。
+        7. 设置ENTRYPOINT/CMD。
+        8. 使用非root用户运行。
+        9. 写出Dockerfile到磁盘。
+        10. 输出DockerfileSpec。
+      </workflow_generate>
+      <workflow_fix>
+        1. 读取错误摘要和完整build/test日志。
+        2. 分类错误：依赖安装失败 / 缺系统库 / base image版本不对 /
+           入口点错误 / 权限问题 / 端口问题。
+        3. 必要时读取仓库文件获取线索（CI配置、Makefile等）。
+        4. 生成修正后的Dockerfile。
+        5. 输出更新的DockerfileSpec。
+      </workflow_fix>
+      <max_rounds>10</max_rounds>
+    </agent>
+
+    <agent name="BuildTestAgent">
+      <purpose>
+        构建Docker镜像，启动容器，执行MCP协议握手测试。
+        输出BuildResult + TestResult供Orchestrator判断是否需要触发修复循环。
+      </purpose>
+      <input>DockerfileSpec + RepoAnalysisResult</input>
+      <tools>
+        - build_image(context_path, dockerfile_path, tag, timeout=600) → BuildResult
+        - run_container(image_tag, env_vars, ports, timeout=30) → str (container_id)
+        - get_container_logs(container_id, tail=100) → str
+        - send_mcp_initialize(target, transport) → str
+        - stop_and_remove_container(container_id) → bool
+      </tools>
+      <workflow>
+        1. 构建镜像，捕获完整build日志。
+        2. 构建失败 → 返回BuildResult(success=False)，不进入测试。
+        3. 构建成功 → 启动容器（required secrets用空值占位）。
+        4. 等待容器就绪，抓取启动日志。
+        5. stdio传输：通过docker exec向stdin管道发送MCP initialize消息。
+           SSE/HTTP传输：向endpoint发送HTTP POST。
+        6. 记录握手结果。
+        7. 分析日志中因缺少secrets导致的错误。
+        8. 清理容器。
+        9. 输出BuildResult + TestResult。
+      </workflow>
+      <max_rounds>8</max_rounds>
+    </agent>
+
+  </agent_specifications>
+
+  <orchestrator_specification>
+    <pipeline>
+      INIT → REPO_ANALYSIS → DOCKERFILE_GEN → BUILD_TEST → (FIX_LOOP) → DONE / FAILED
+
+      修复循环（FIX_LOOP）：
+        BUILD_TEST失败 → DockerfileAgent.fix() → BUILD_TEST → ...
+        最多循环 max_fix_attempts 次（默认3次）。
+        如果失败仅因secrets缺失 → 视为DONE（附warnings）。
+    </pipeline>
+
+    <state>
+      class PipelineState(Enum):
+          INIT = "init"
+          REPO_ANALYSIS = "repo_analysis"
+          DOCKERFILE_GEN = "dockerfile_gen"
+          BUILD_TEST = "build_test"
+          FIXING = "fixing"
+          DONE = "done"
+          FAILED = "failed"
+
+      class PipelineContext(BaseModel):
+          state: PipelineState = PipelineState.INIT
+          repo_path: str
+          work_dir: str
+          repo_analysis: RepoAnalysisResult | None = None
+          dockerfile_spec: DockerfileSpec | None = None
+          build_result: BuildResult | None = None
+          test_result: TestResult | None = None
+          fix_attempts: int = 0
+          max_fix_attempts: int = 3
+          error_history: list[str] = []
+    </state>
+
+    <orchestrator_logic>
+      def run(repo_path: str) -> FinalOutput:
+          ctx = PipelineContext(repo_path=repo_path, work_dir=tempdir)
+
+          # Stage 1: 仓库分析（结构 + Secrets）
+          ctx.repo_analysis = repo_analysis_agent.run(repo_path)
+          if ctx.repo_analysis.confidence < 0.3:
+              return FinalOutput(success=False, notes=["仓库分析置信度过低"])
+
+          # Stage 2: 生成Dockerfile
+          ctx.dockerfile_spec = dockerfile_agent.generate(ctx.repo_analysis)
+
+          # Stage 3+: 构建测试循环
+          while ctx.fix_attempts <= ctx.max_fix_attempts:
+              build_result, test_result = build_test_agent.run(ctx.dockerfile_spec, ctx.repo_analysis)
+
+              if build_result.success and test_result.mcp_handshake_ok:
+                  return assemble_final_output(ctx, success=True)
+
+              if not build_result.success or is_code_error(test_result):
+                  ctx.fix_attempts += 1
+                  ctx.error_history.append(build_result.error_summary or test_result.error_summary)
+                  ctx.dockerfile_spec = dockerfile_agent.fix(ctx.repo_analysis, build_result, test_result)
+                  continue
+
+              if is_secrets_only_error(test_result):
+                  return assemble_final_output(ctx, success=True, warnings=["需提供secrets才能完整运行"])
+
+          return FinalOutput(success=False, notes=["达到最大修复次数仍未成功"])
+    </orchestrator_logic>
+  </orchestrator_specification>
+
+  <base_agent_specification>
+    <interface>
+      class BaseAgent(ABC):
+          agent_id: str
+          msg_thread: MessageThread
+          max_round: int
+          tool_registry: dict[str, Callable]
+
+          + run(input_data: Any) → Any               # 主入口
+          + add_system_message(msg: str)
+          + add_user_message(msg: str)
+          + execute_tool(call: FunctionCallIntent) → str
+          + get_tool_definitions() → list[dict]      # OpenAI tool schema
+          + should_stop() → bool                     # 轮次上限检查
+
+          @abstractmethod
+          + init_msg_thread() → None
+          @abstractmethod
+          + get_available_tools() → list[str]
+    </interface>
+  </base_agent_specification>
+
+  <tool_specifications>
+    <file_tools module="src/tools/file_tools.py">
+      - list_directory_tree(path: str) → str               # ASCII目录树
+      - read_file(path: str, max_lines: int = 500) → str   # 读取文件内容
+      - write_file(path: str, content: str) → str           # 写文件
+      - search_files(root: str, pattern: str) → list[str]   # Glob搜索文件
+      - search_in_files(root: str, regex: str, file_pattern: str = "*") → list[dict]  # 内容搜索
+    </file_tools>
+
+    <docker_tools module="src/tools/docker_tools.py">
+      - build_image(context_path, dockerfile_path, tag, timeout=600) → BuildResult
+      - run_container(image_tag, env_vars=None, ports=None, timeout=30) → str
+      - get_container_logs(container_id, tail=100) → str
+      - stop_and_remove_container(container_id) → bool
+      - send_mcp_initialize(target, transport) → str        # stdio: docker exec管道; HTTP: POST请求
+      - remove_image(image_tag) → bool
+    </docker_tools>
+  </tool_specifications>
+
+  <mcp_handshake_testing>
+    <initialize_request>
+      {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "protocolVersion": "2025-03-26",
+          "capabilities": {},
+          "clientInfo": { "name": "mcp-auto-installer-test", "version": "1.0.0" }
+        }
+      }
+    </initialize_request>
+    <validation>
+      合法响应须包含 "jsonrpc": "2.0", "id": 1, "result" 含 protocolVersion + serverInfo。
+    </validation>
+    <transport_handling>
+      - stdio: docker exec管道JSON-RPC到进程stdin，读取stdout。
+      - SSE/HTTP: POST到 http://localhost:{port}/sse 或 /mcp。
+      - 未知传输类型：先试stdio，再试HTTP。
+    </transport_handling>
+  </mcp_handshake_testing>
+
+  <config module="src/config.py">
+    - LLM_MODEL: str = "gpt-4o"
+    - LLM_BASE_URL: str | None = None
+    - LLM_API_KEY: str                           # 从环境变量读取
+    - LLM_TEMPERATURE: float = 0.2
+    - LLM_MAX_TOKENS: int = 4096
+    - WORK_DIR: str = "/tmp/mcp-auto-installer"
+    - MAX_FIX_ATTEMPTS: int = 3
+    - DOCKER_BUILD_TIMEOUT: int = 600
+    - CONTAINER_STARTUP_TIMEOUT: int = 30
+    - LOG_LEVEL: str = "INFO"
+  </config>
+
+  <cli module="src/main.py">
+    用法：
+      python -m src.main /path/to/local/mcp-repo
+
+    参数：
+      repo_path                  本地MCP仓库路径（必填）
+      --output-dir PATH          输出目录，默认 ./output
+      --max-fix-attempts INT     最大修复循环次数，默认 3
+      --skip-test                跳过容器测试阶段
+      --verbose                  开启DEBUG日志
+      --env-file PATH            提供.env文件用于真实secrets测试
+
+    输出文件（写入output-dir）：
+      - Dockerfile
+      - .env.example
+      - build-report.json        # Pipeline执行摘要
+  </cli>
+
+  <implementation_steps>
+    <step number="1">
+      <title>基础设施：数据结构、配置、BaseAgent</title>
+      <tasks>
+        - 修复MessageThread的 _init__ → __init__ 拼写错误。
+        - 在schemas/models.py中定义所有Pydantic models。
+        - 实现config.py。
+        - 实现BaseAgent：消息管理、工具注册与调度、轮次控制、结构化输出提取。
+        - 实现model/client.py：封装OpenAI SDK调用。
+      </tasks>
+    </step>
+
+    <step number="2">
+      <title>工具层</title>
+      <tasks>
+        - 实现file_tools.py（迁移list_directory_tree，新增read_file、write_file、search系列）。
+        - 实现docker_tools.py（build_image, run_container, logs, cleanup, mcp_handshake）。
+      </tasks>
+    </step>
+
+    <step number="3">
+      <title>RepoAnalysisAgent（结构+Secrets合并）</title>
+      <tasks>
+        - 编写system prompt：涵盖项目结构识别与环境变量扫描两部分。
+        - 继承BaseAgent，注册file_tools。
+        - 实现结构化输出解析 → RepoAnalysisResult。
+        - 用1-2个真实MCP仓库测试。
+      </tasks>
+    </step>
+
+    <step number="4">
+      <title>DockerfileAgent（生成+修复合并）</title>
+      <tasks>
+        - 实现generate()方法：首次生成Dockerfile。
+        - 实现fix()方法：接收错误反馈，修正Dockerfile。
+        - 两个方法共享Agent实例，通过不同prompt区分。
+        - 编写Dockerfile最佳实践到system prompt中。
+      </tasks>
+    </step>
+
+    <step number="5">
+      <title>BuildTestAgent</title>
+      <tasks>
+        - 实现构建阶段：调用docker build，捕获日志。
+        - 实现测试阶段：启动容器，执行MCP握手。
+        - 错误分类：区分代码错误 vs secrets缺失。
+        - 容器清理（finally保证执行）。
+      </tasks>
+    </step>
+
+    <step number="6">
+      <title>Orchestrator与Pipeline</title>
+      <tasks>
+        - 实现Pipeline状态机与修复循环逻辑。
+        - 串联三个Agent。
+        - 组装FinalOutput。
+        - 实现CLI入口与输出文件写入。
+      </tasks>
+    </step>
+
+    <step number="7">
+      <title>端到端测试与打磨</title>
+      <tasks>
+        - 用真实MCP仓库端到端测试（Python + Node.js各一个）。
+        - 完善错误信息。
+        - 确保Docker资源清理无遗漏。
+        - 编写README使用文档。
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <functionality>
+      - 给定本地MCP仓库路径，系统产出可用的Dockerfile。
+      - 镜像构建成功率覆盖Python和Node.js项目。
+      - 不依赖secrets的MCP服务可通过initialize握手测试。
+      - Secrets分析正确识别所需环境变量并生成.env.example。
+      - 修复循环能解决常见构建错误（缺包、版本错、入口点错）。
+    </functionality>
+    <output_quality>
+      - Dockerfile遵循最佳实践（multi-stage、slim镜像、非root用户）。
+      - .env.example内容完整、有注释。
+      - build-report.json提供清晰的执行追踪。
+    </output_quality>
+    <robustness>
+      - Agent轮次上限防止死循环。
+      - 修复循环次数上限防止无限重试。
+      - 容器和镜像清理无遗漏。
+    </robustness>
+  </success_criteria>
+
+  <known_issues_in_existing_code>
+    - MessageThread.__init__ 拼写为 _init__，导致messages未初始化。
+    - list_directory_tree 定义在RepoAnalysisAgent内部，应提取到tools/file_tools.py。
+    - agent.py 应重命名为 base_agent.py 避免与agents包混淆。
+  </known_issues_in_existing_code>
+
+  <future_extensions>
+    - 支持GitHub URL输入（git clone远程仓库）。
+    - 支持更多语言：Go、Rust。
+    - 添加docker-compose.yml生成。
+    - 添加Web UI展示Pipeline进度。
+    - 支持批量处理多个MCP仓库。
+  </future_extensions>
+</project_specification>
