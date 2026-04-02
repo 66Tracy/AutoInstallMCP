@@ -11,7 +11,7 @@
       "Assert config.LLM_MODEL == 'test-model'",
       "Assert config.LLM_BASE_URL == 'http://test-url'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-02",
@@ -27,7 +27,7 @@
       "Assert config.CONTAINER_STARTUP_TIMEOUT == 30",
       "Assert config.LOG_LEVEL == 'INFO'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-03",
@@ -39,7 +39,7 @@
       "Reload config module",
       "Assert config.LLM_BASE_URL is None"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-04",
@@ -53,7 +53,7 @@
       "Assert instance.name == 'API_KEY'",
       "Assert instance.required == True"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-05",
@@ -67,7 +67,7 @@
       "Assert exposed_port defaults to None when not provided",
       "Assert required_env_vars is a list of EnvVarSpec"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-06",
@@ -79,7 +79,7 @@
       "Create DockerfileSpec with dockerfile_content, env_vars_to_inject, expected_transport, exposed_ports, entrypoint, notes",
       "Assert instance validates without error"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-07",
@@ -93,7 +93,7 @@
       "Create BuildResult(success=False, image_tag='test:latest', build_log='ERROR', error_summary='missing package')",
       "Assert instance.error_summary == 'missing package'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-08",
@@ -105,7 +105,7 @@
       "Create TestResult(container_started=True, startup_log='started', mcp_handshake_ok=True, error_summary=None, missing_secrets=[])",
       "Assert instance validates without error"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-09",
@@ -119,7 +119,7 @@
       "Assert instance.success is a bool",
       "Assert instance.required_secrets is a list of EnvVarSpec"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-10",
@@ -136,7 +136,7 @@
       "Assert PipelineState.DONE.value == 'done'",
       "Assert PipelineState.FAILED.value == 'failed'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-11",
@@ -152,7 +152,7 @@
       "Assert instance.error_history == []",
       "Assert instance.repo_analysis is None"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-12",
@@ -167,7 +167,7 @@
       "Assert messages[0]['role'] == 'system'",
       "Assert messages[0]['content'] == 'test'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-13",
@@ -180,7 +180,7 @@
       "Assert instance.name == 'read_file'",
       "Assert instance.arguments == {'path': '/tmp/test'}"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-14",
@@ -193,7 +193,7 @@
       "Assert client has chat_completion method",
       "Assert client uses config.LLM_API_KEY, config.LLM_MODEL, config.LLM_BASE_URL"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-15",
@@ -205,7 +205,7 @@
       "Verify chat_completion method signature accepts messages: list[dict], tools: list[dict] | None, temperature: float | None",
       "Verify method returns an OpenAI ChatCompletion-compatible response object"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-16",
@@ -219,7 +219,7 @@
       "Create a minimal subclass implementing init_msg_thread and get_available_tools",
       "Assert subclass can be instantiated"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-17",
@@ -232,7 +232,7 @@
       "Call add_user_message('user input')",
       "Assert msg_thread contains both messages with correct roles"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-18",
@@ -244,7 +244,7 @@
       "Simulate 3 rounds of execution",
       "Assert should_stop() returns True"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-19",
@@ -258,7 +258,7 @@
       "Assert the mock tool was called with correct arguments",
       "Assert the result is returned as a string"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "infra-20",
@@ -271,7 +271,7 @@
       "Assert return is a list of dicts",
       "Assert each dict has 'type': 'function' and 'function' key with 'name', 'description', 'parameters'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-01",
@@ -284,7 +284,7 @@
       "Assert result is a non-empty string",
       "Assert result contains the subdirectory and file names"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-02",
@@ -298,7 +298,7 @@
       "Call read_file(temp_file_path, max_lines=10)",
       "Assert result contains only 10 lines"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-03",
@@ -311,7 +311,7 @@
       "Call write_file(temp_path, 'new content') to overwrite",
       "Read back and assert content == 'new content'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-04",
@@ -324,7 +324,7 @@
       "Assert result contains a.py and b.py",
       "Assert result does not contain c.txt"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-05",
@@ -337,7 +337,7 @@
       "Assert result is a list of dicts with file, line_number, line keys",
       "Assert the file containing 'API_KEY' is in the results"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-06",
@@ -348,7 +348,7 @@
       "Call docker.from_env().ping()",
       "Assert returns True without ConnectionError"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-07",
@@ -362,7 +362,7 @@
       "Assert returned BuildResult.image_tag == 'test-build:latest'",
       "Clean up: remove the built image"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-08",
@@ -375,7 +375,7 @@
       "Assert returned BuildResult.success == False",
       "Assert returned BuildResult.error_summary is not None"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-09",
@@ -388,7 +388,7 @@
       "Assert returned container_id is a non-empty string",
       "Clean up: stop and remove container and image"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-10",
@@ -401,7 +401,7 @@
       "Assert result contains the expected output",
       "Clean up container"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-11",
@@ -414,7 +414,7 @@
       "Assert returns True",
       "Assert container no longer exists (docker inspect fails)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-12",
@@ -427,7 +427,7 @@
       "Assert returns True",
       "Assert image no longer exists"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "tool-13",
@@ -439,7 +439,7 @@
       "Assert the initialize request contains jsonrpc='2.0', id=1, method='initialize'",
       "Assert params include protocolVersion, capabilities, clientInfo"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-repo-01",
@@ -452,7 +452,7 @@
       "Assert tool_registry contains 'list_directory_tree', 'read_file', 'search_files', 'search_in_files'",
       "Assert max_round == 15"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-repo-02",
@@ -466,7 +466,7 @@
       "Assert SYSTEM_PROMPT mentions environment variable scanning",
       "Assert SYSTEM_PROMPT mentions transport type detection (stdio/sse)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-repo-03",
@@ -482,7 +482,7 @@
       "Assert result.entry_point is a non-empty string",
       "Assert result.confidence >= 0.0 and <= 1.0"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-repo-04",
@@ -496,7 +496,7 @@
       "Assert result.config_files_found includes 'pyproject.toml'",
       "Assert result.base_image_suggestion contains 'python'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-repo-05",
@@ -508,7 +508,7 @@
       "Assert result.env_file_template is a non-empty string",
       "Assert result.secrets_risk is one of 'low', 'medium', 'high'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-dock-01",
@@ -521,7 +521,7 @@
       "Assert tool_registry contains 'read_file', 'write_file'",
       "Assert max_round == 10"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-dock-02",
@@ -535,7 +535,7 @@
       "Assert SYSTEM_PROMPT mentions non-root user",
       "Assert SYSTEM_PROMPT mentions Docker layer caching"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-dock-03",
@@ -550,7 +550,7 @@
       "Assert dockerfile_content contains 'ENTRYPOINT' or 'CMD'",
       "Assert expected_transport matches the input"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-dock-04",
@@ -564,7 +564,7 @@
       "Assert return type is DockerfileSpec",
       "Assert returned dockerfile_content differs from the original"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-dock-05",
@@ -577,7 +577,7 @@
       "Assert a Dockerfile file was written to the work_dir",
       "Assert file content matches dockerfile_content in the returned DockerfileSpec"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-build-01",
@@ -590,7 +590,7 @@
       "Assert tool_registry contains 'build_image', 'run_container', 'get_container_logs', 'send_mcp_initialize', 'stop_and_remove_container'",
       "Assert max_round == 8"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-build-02",
@@ -604,7 +604,7 @@
       "Call run(dockerfile_spec, repo_analysis)",
       "Assert return is a tuple of (BuildResult, TestResult)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-build-03",
@@ -618,7 +618,7 @@
       "Assert TestResult.container_started == False",
       "Assert TestResult.mcp_handshake_ok == False"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "agent-build-04",
@@ -630,7 +630,7 @@
       "After run completes, verify no leftover containers from the test exist",
       "Verify stop_and_remove_container was called"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "orch-01",
@@ -643,7 +643,7 @@
       "Create PipelineContext(repo_path='/tmp/test', work_dir='/tmp/work')",
       "Assert context.state == PipelineState.INIT"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "orch-02",
@@ -659,7 +659,7 @@
       "Assert final state is DONE",
       "Assert FinalOutput.success == True"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "orch-03",
@@ -673,7 +673,7 @@
       "Assert FinalOutput.success == False",
       "Assert notes mention low confidence"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "orch-04",
@@ -689,7 +689,7 @@
       "Assert fix_attempts == 1",
       "Assert FinalOutput.success == True"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "orch-05",
@@ -704,7 +704,7 @@
       "Assert FinalOutput.success == False",
       "Assert notes mention max fix attempts reached"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "orch-06",
@@ -719,7 +719,7 @@
       "Assert FinalOutput.success == True",
       "Assert notes contain warning about secrets"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "orch-07",
@@ -735,7 +735,7 @@
       "Assert FinalOutput has transport_type",
       "Assert FinalOutput has required_secrets list"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "orch-08",
@@ -751,7 +751,7 @@
       "Assert skip_test defaults to False",
       "Assert verbose defaults to False"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "orch-09",
@@ -764,7 +764,7 @@
       "Assert output_dir contains '.env.example'",
       "Assert output_dir contains 'build-report.json'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "e2e-01",
@@ -779,7 +779,7 @@
       "Assert build-report.json was written to output directory",
       "Assert FinalOutput.image_tag is non-empty"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "e2e-02",
@@ -793,7 +793,7 @@
       "Assert Dockerfile contains ENTRYPOINT or CMD",
       "Assert the Docker image was built (BuildResult.success == True)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "e2e-03",
@@ -807,7 +807,7 @@
       "Assert fix_attempts > 0 in the pipeline context",
       "Assert pipeline eventually reaches DONE or FAILED state"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "e2e-04",
@@ -821,7 +821,7 @@
       "Assert file contains variable names with placeholder values",
       "Assert file has comment lines explaining variables"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "e2e-05",
@@ -837,7 +837,7 @@
       "Assert report contains dockerfile_content",
       "Assert report contains startup_command"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "id": "e2e-06",
@@ -850,6 +850,6 @@
       "Assert no leftover containers from the pipeline run",
       "Verify cleanup was performed in finally blocks"
     ],
-    "passes": false
+    "passes": true
   }
 ]

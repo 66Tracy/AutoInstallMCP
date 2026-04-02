@@ -55,7 +55,7 @@ class BaseAgent(ABC):
     def should_stop(self) -> bool:
         return self._current_round >= self.max_round
 
-    def execute_tool(self, call: FunctionCallIntent) -> str:
+    def execute_tool(self, call: FunctionCallIntent, max_result_chars: int = 8000) -> str:
         func = self.tool_registry.get(call.name)
         if func is None:
             return json.dumps({"error": f"Unknown tool: {call.name}"})
@@ -63,6 +63,8 @@ class BaseAgent(ABC):
             result = func(**call.arguments)
             if not isinstance(result, str):
                 result = json.dumps(result, default=str)
+            if len(result) > max_result_chars:
+                result = result[:max_result_chars] + f"\n... [truncated, {len(result)} total chars]"
             return result
         except Exception as e:
             logger.exception("Tool %s failed", call.name)
